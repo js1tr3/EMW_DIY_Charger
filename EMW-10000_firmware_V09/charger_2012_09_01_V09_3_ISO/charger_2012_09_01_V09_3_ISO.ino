@@ -32,13 +32,29 @@ Commercial use prohibited without written approval from the Author or EMW.
 #include <EEPROM.h>
 #include "EEPROM_VMcharger.h"
 #include <TimerOne.h>
-// my LCD library for 4D systems display (http://www.4dsystems.com.au/prod.php?id=121)
-#include <uLCD_144.h>
-uLCD_144 *myLCD;
+
+
+#define NEW_DISPLAY_SPE // Use SPE commands. instead of SGC.
+// https://github.com/4dsystems/Goldelox-Serial-Arduino-Library
+
+#if defined(NEW_DISPLAY_SPE)
+  // SPE library for 4D systems display
+  #include "Goldelox_Serial_4DLib.h"
+  #include "Goldelox_const4D.h"
+  #define DisplaySerial Serial
+  Goldelox_Serial_4DLib Display(&DisplaySerial);
+#else
+  // my LCD library for 4D systems display (http://www.4dsystems.com.au/prod.php?id=121)
+  #include <uLCD_144.h>
+  uLCD_144 *myLCD;
+
+#endif
+
+
 
 //----------- DEBUG switch - careful, this disables many safety features...---------------
 //#define DEBUG0 // just increase maximums
-// #define DEBUG // additional printouts / delays / etc.
+#define DEBUG // additional printouts / delays / etc.
 //----------------------------------------------------------------------------------------
 
 
@@ -319,11 +335,30 @@ void setup() {
   divider_k_bV=upperR0_bV/lowerR_bV;
 
   // get the display going
+   #if defined(NEW_DISPLAY_SPE) // Don't use auto-baud of uLCD-144-G2
+
+  char wks[20] ;
+  Display.TimeLimit4D   = 5000 ; // 2 second timeout on all commands
+  Display.Callback4D = NULL ; //Callback ; // 
+  DisplaySerial.begin(9600) ;
+  Display.gfx_Cls() ;
+  Display.sys_GetModel(wks) ; // length is also returned, but we don't need that here
+  Display.putstr("Model:\n") ;
+  Display.putstr(wks) ;
+  delay(1000) ;
+  Display.txt_BGcolour(0);
+  Display.gfx_Cls();
+  Display.gfx_Contrast(0x0F) ;
+  Display.txt_Opacity(1) ;
+  
+  #else
   *myLCD=uLCD_144(9600); // max is 100kbps and is dependent on the noise levels in the charger
   myLCD->setBgColor(0, 0, 0);
   myLCD->setContrast(0x0f);
   myLCD->clrScreen();
   myLCD->setOpacity(1);
+  //#endif
+  #endif
   
   nReadSamples=nReadSamples0; // need this here (otherwise all measurements in setup are screwed)
 
@@ -352,7 +387,17 @@ void setup() {
     switch(state)
    {
      case STATE_BT:
+
+#if defined(NEW_DISPLAY_SPE)
+      Display.txt_MoveCursor(1,0);
+      Display.txt_Height(1);
+      Display.txt_Width(1);
+
+      Display.putstr(" Thank you \n for choosing \n EMW Charger! \n Press any button \n to configure\n") ; 
+#else
+    //void uLCD_144::printStr(int col, int row, int font, byte red, byte green, byte blue, const char *str) 
        myLCD->printStr(0, 0, 2, 0, 0x3f, 0x00, "Thank you for choosing EMW Charger! Press any button to configure"); 
+#endif
        // if config is not forced, just timeout and send to end of config. Else, wait until button press
        if(forceConfig==0) {
          forceConfig=BtnTimeout(5, 5); // -1 if no button pressed; 1 otherwise
@@ -360,30 +405,57 @@ void setup() {
        if(forceConfig==-1) {
          state=STATE_DONE;
        } else { // forceConfig=1 here
-         myLCD->clrScreen();
+       #if defined(NEW_DISPLAY_SPE)
+           Display.gfx_Cls();
+           Display.txt_MoveCursor(1,0);
+           Display.putstr("Cell Type: ");
+       #else
+          myLCD->clrScreen();
          myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "Cell Type:          ");
+       #endif
          configuration.battType=MenuSelector2(battTypeLen, battTypeLabel);
          state = STATE_CV;
        }
        break;
      case STATE_CV:
-       myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "CV cutoff:         ");
+        #if defined(NEW_DISPLAY_SPE)
+        Display.txt_MoveCursor(1,0);
+         Display.putstr("CV cutoff: ");
+        #else
+           myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "CV cutoff:         ");
+        #endif
        configuration.CV = DecimalDigitInput3(configuration.CV); 
        state = STATE_CELLS;       
        break;
      case STATE_CELLS:
+    #if defined(NEW_DISPLAY_SPE)
+       Display.txt_MoveCursor(1,0);
+       Display.putstr("Number of cells:   ");
+    #else
        myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "Number of cells:   ");
+    #endif
+       
        configuration.nCells = DecimalDigitInput3(configuration.nCells); 
        state = STATE_CAPACITY;       
        break;
      case STATE_CAPACITY:
+    #if defined(NEW_DISPLAY_SPE)
+      Display.txt_MoveCursor(1,0);
+      Display.putstr("Capacity:          ");
+    #else
        myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "Capacity:          ");
+    #endif
        configuration.AH = DecimalDigitInput3(configuration.AH); 
        state = STATE_CALIBRATE;       
        break;
      case STATE_CALIBRATE:
        // first, zero calibration
+       #if defined(NEW_DISPLAY_SPE)
+       Display.txt_MoveCursor(1,0);
+       Display.putstr("Short output and \n press any button");
+       #else
        myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "Short output and press any button");
+       #endif
        while(!(digitalRead(pin_pwrCtrlButton) || digitalRead(pin_pwrCtrl2Button)));
        outV=readV();
        outC=readC();
@@ -394,14 +466,25 @@ void setup() {
          configuration.Vcal=temp; 
          // output current calibration
          configuration.Ccal=outC*k_V_C;
+          #if defined(NEW_DISPLAY_SPE)
+            Display.txt_MoveCursor(1,5); // move cursor and set color
+            Display.putstr("Calibrated zero");
+          #else
          myLCD->printStr(0, 5, 2, 0x1f, 0x3f, 0x00, "Calibrated zero");
+         #endif
          delay(1000);
        }
        // now at voltage. first, double-check we have reset to zero point
        outV=readV(); // get the readings with zero-point already calibrated
        if(abs(outV)<3) { // should be pretty tight after zero calibration
+        #if defined(NEW_DISPLAY_SPE)
+            Display.gfx_Cls();
+            Display.txt_MoveCursor(1,0);
+            Display.putstr("Connect battery \n to calibrate \n or press any \n button to skip");
+        #else
          myLCD->clrScreen();
          myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "Connect battery to calibrate or press any button to skip");
+         #endif
          delay(1000); // to avoid reading same button state as in prev step
          while(1) {
            outV=readV();
@@ -410,7 +493,14 @@ void setup() {
              delay(5000); // let settle
              outV=readV(); // read settled voltage
              // calibrate
+            #if defined(NEW_DISPLAY_SPE)
+          // Display.gfx_Cls();
+           Display.txt_MoveCursor(1,0);
+           Display.putstr("Measure & enter actual \n battery voltage:");
+
+            #else
              myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "Measure & enter actual battery voltage:");
+             #endif
              // calibration routine here - if actual voltage > shown, REDUCE the constant
              configuration.Vcal_k=DecimalDigitInput3(int(outV))/outV;
              break; // from while() loop
@@ -423,9 +513,21 @@ void setup() {
        state = STATE_CONFIRM;
        break;
      case STATE_CONFIRM:
+     
+     sprintf(str, "%d %s cells, %dAH", configuration.nCells, battTypeLabel[configuration.battType], configuration.AH);
+     
+    #if defined(NEW_DISPLAY_SPE)
+  
+    Display.gfx_Cls();
+    Display.txt_MoveCursor(1,0);
+    Display.putstr("Confirm:\n") ;
+    Display.putstr(str);
+    #else
        myLCD->clrScreen();
        myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "Confirm:        ");
-       sprintf(str, "%d %s cells, %dAH", configuration.nCells, battTypeLabel[configuration.battType], configuration.AH);       myLCD->printStr(0, 1, 2, 0x1f, 0x3f, 0x00, str);
+       myLCD->printStr(0, 1, 2, 0x1f, 0x3f, 0x00, str);
+     #endif
+     
        x=MenuSelector2(menuNavigateLen, menuNavigate);
        if(x == 0) state = STATE_DONE;
        if(x == 1) state = STATE_BT;
@@ -487,16 +589,43 @@ void loop() {
       
       while(state != STATE_SHUTDOWN)
       {
+
+        #if defined(NEW_DISPLAY_SPE)
+            Display.gfx_Cls();
+            Display.txt_MoveCursor(1,6);
+           Display.putstr("Params      ");
+        sprintf(str, "IN: %dV, %dA", int(mainsV), configuration.mainsC); 
+           Display.txt_MoveCursor(1,7);
+           Display.putstr(str);
+       sprintf(str, "OUT: %dA", configuration.CC); 
+           Display.txt_MoveCursor(1,8);
+           Display.putstr(str);
+        sprintf(str, "TIMEOUT: %dmin", timeOut); 
+           Display.txt_MoveCursor(1,9);
+           Display.putstr(str);
+        
+        
+        #else
         myLCD->clrScreen();
         myLCD->printStr(0, 6, 2, 0x1f, 0x3f, 0, "Params      ");
-        sprintf(str, "IN: %dV, %dA", int(mainsV), configuration.mainsC); myLCD->printStr(1, 7, 2, 0x1f, 0x3f, 0, str);
-        sprintf(str, "OUT: %dA", configuration.CC); myLCD->printStr(1, 8, 2, 0x1f, 0x3f, 0, str);
-        sprintf(str, "TIMEOUT: %dmin", timeOut); myLCD->printStr(0, 9, 2, 0x1f, 0x3f, 0, str); 
+        sprintf(str, "IN: %dV, %dA", int(mainsV), configuration.mainsC); 
+        myLCD->printStr(1, 7, 2, 0x1f, 0x3f, 0, str);
+        sprintf(str, "OUT: %dA", configuration.CC); 
+        myLCD->printStr(1, 8, 2, 0x1f, 0x3f, 0, str);
+        sprintf(str, "TIMEOUT: %dmin", timeOut); 
+        myLCD->printStr(0, 9, 2, 0x1f, 0x3f, 0, str); 
         
+        #endif        
         switch(state)
         {
         case STATE_WAIT_TIMEOUT:
+          #if defined(NEW_DISPLAY_SPE)
+          //  Display.gfx_Cls();
+           Display.txt_MoveCursor(1,0);
+           Display.putstr("press BTN to \n change parameters");
+          #else
           myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "press BTN to change parameters");
+          #endif
           x=BtnTimeout(10, 3);
           
           // check J1772
@@ -512,7 +641,14 @@ void loop() {
            }
           break;
         case STATE_TOP_MENU:
+          #if defined(NEW_DISPLAY_SPE)
+         //   Display.gfx_Cls();
+            Display.txt_MoveCursor(1,0);
+           Display.putstr("Action: \n");
+          
+          #else
           myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "Action:                         ");
+          #endif
           x=MenuSelector2(configMenuLen, configMenu);
           switch(x)
           {
@@ -523,20 +659,47 @@ void loop() {
           }
           break;
         case STATE_CONFIG_PWR:
+          #if defined(NEW_DISPLAY_SPE)
+          Display.txt_MoveCursor(1,0);
+          Display.putstr("max INput current ");
+          configuration.mainsC = DecimalDigitInput3(configuration.mainsC); 
+     
+          Display.txt_MoveCursor(1,0);
+          Display.putstr("max OUTput current");
+          configuration.CC = DecimalDigitInput3(configuration.CC); 
+          
+          #else
           myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "max INput current ");      
           configuration.mainsC = DecimalDigitInput3(configuration.mainsC); 
           myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "max OUTput current");      
           configuration.CC = DecimalDigitInput3(configuration.CC); 
+          
+          #endif
+          
+          
+          
           state = STATE_TOP_MENU;
           break;
         case STATE_CONFIG_TIMER:
-            // now set the timer using the same button       
+            // now set the timer using the same button   
+#if defined(NEW_DISPLAY_SPE)
+           Display.txt_MoveCursor(1,0);
+           Display.putstr("timeout (min, 0 for no timeout):");
+#else
             myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x1f, "timeout (min, 0 for no timeout):");
+#endif
+            
             timeOut=DecimalDigitInput3(0); 
            state = STATE_TOP_MENU;
            break;
         case STATE_RUN_CHARGER:
+#if defined(NEW_DISPLAY_SPE)
+             Display.txt_MoveCursor(1,0);
+             Display.putstr("Confirm CHARGE [Y/n]:");
+#else
             myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "Confirm CHARGE [Y/n]:");
+#endif
+            
             x=MenuSelector2(menuNavigateLen, menuNavigate);
           if(x == 1) state = STATE_TOP_MENU;
           if(x == 0) 
@@ -651,10 +814,20 @@ int runCharger() {
 
   digitalWrite(pin_fan, LOW);    
   digitalWrite(pin_EOC, LOW); // active low
+  
+  #if defined(NEW_DISPLAY_SPE)
+      Display.gfx_Cls();
+    Display.txt_MoveCursor(1,0);
+           Display.putstr("Charging Complete! \n Press right button \n to run again");  
+            sprintf(str, "%dAH in", int(AH_charger));
+            Display.txt_MoveCursor(1,6);
+            Display.putstr(str);
+#else
   myLCD->clrScreen();
   myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x1f, "Charging Complete! Press right button to run again");      
   sprintf(str, "%dAH in", int(AH_charger)); 
   myLCD->printStr(0, 6, 2, 0x1f, 0x3f, 0x1f, str);      
+#endif
 
   AH_in+=AH_charger;
 }
@@ -681,11 +854,24 @@ int runChargeStep(int cycleType, float CX, int stopType, float stopValue) {
   t_ms = 0; 
   duty=0; // start with the duty cycle = 0 until you hit the constraint
   
+#if defined(NEW_DISPLAY_SPE)
+    Display.gfx_Cls();
+      sprintf(str, "type=%d, \n CX=%d, \n sType=%d, \n max=%d", cycleType, int(CX), stopType, int(stopValue)); 
+
+    Display.txt_MoveCursor(1,4);
+    Display.putstr( str); 
+     delay(5000);
+     Display.gfx_Cls();
+#else
   myLCD->clrScreen();
-  sprintf(str, "type=%d, CX=%d, sType=%d, max=%d", cycleType, int(CX), stopType, int(stopValue)); 
-  myLCD->printStr(0, 4, 2, 0x1f, 0x3f, 0x1f, str);      
+    sprintf(str, "type=%d, CX=%d, sType=%d, max=%d", cycleType, int(CX), stopType, int(stopValue)); 
+
+   myLCD->printStr(0, 4, 2, 0x1f, 0x3f, 0x1f, str);      
   delay(5000);
   myLCD->clrScreen();
+  #endif
+  
+  
   // start sensor readouts at some value so we can feed the averages
   outV_avg=outV=outV0=readV();
   outC_avg=outC=readC();
@@ -788,15 +974,33 @@ int runChargeStep(int cycleType, float CX, int stopType, float stopValue) {
               stopPWM();
               out1=out2=outV=outC=outC_avg=outV_avg=0; // force duty ramp
               resetDelayParams();
-              myLCD->clrScreen();        
-  
+              #if defined(NEW_DISPLAY_SPE)
+                    Display.gfx_Cls();
+                    
+              #else
+                myLCD->clrScreen();        
+              #endif
               while(1) {
-                sprintf(str, "Overheating, T=%dC. Cooling to T=%dC", (int)heatSinkT, (int)midHeatSinkT);
-                myLCD->printStr(0, 1, 2, 0x1F, 0, 0, str);
+                
+                #if defined(NEW_DISPLAY_SPE)
+                  Display.txt_MoveCursor(1,1);
+                  sprintf(str, "Overheating, T=%dC. \n Cooling to T=%dC", (int)heatSinkT, (int)midHeatSinkT);
+                  Display.putstr(str); // still need to set colors here
+                #else
+                  sprintf(str, "Overheating, T=%dC. Cooling to T=%dC", (int)heatSinkT, (int)midHeatSinkT);
+                  myLCD->printStr(0, 1, 2, 0x1F, 0, 0, str);
+                  
+                #endif
+            
                 delay(1000);
                 heatSinkT=read_heatSinkT();
                 if(heatSinkT<midHeatSinkT) {
-                  myLCD->clrScreen();
+                  #if defined(NEW_DISPLAY_SPE)
+                        Display.gfx_Cls();
+                        
+                  #else
+                    myLCD->clrScreen();
+                  #endif
                   break; // exit cycle when the temp drops enough
                 }
               }
@@ -864,7 +1068,11 @@ int runChargeStep(int cycleType, float CX, int stopType, float stopValue) {
           b1=isBtnPressed(pin_pwrCtrlButton);
           b2=isBtnPressed(pin_pwrCtrl2Button);      
         } while(!b1 && !b2);
-        myLCD->clrScreen();
+        #if defined(NEW_DISPLAY_SPE)
+              Display.gfx_Cls();
+        #else
+          myLCD->clrScreen();
+        #endif
         // button pressed. which one?
         if(b1) {
           stopPWM();           
@@ -872,7 +1080,12 @@ int runChargeStep(int cycleType, float CX, int stopType, float stopValue) {
         }
 
         // resume operation
-        myLCD->clrScreen();
+        #if defined(NEW_DISPLAY_SPE)
+              Display.gfx_Cls();
+           
+        #else
+          myLCD->clrScreen();
+        #endif
         resetDelayParams();
       }
       
@@ -1037,26 +1250,76 @@ void resetDelayParams() {
 // SerialLCD Functions
 void printParams(float duty, float outV, float outC, float b1T, float curAH, float dVdt) {
   char tempstr[16];
-  // myLCD->setOpacity(1); // so that we override previous text
-  sprintf(str, "Duty = %s%%  ", ftoa(tempstr, 100.*duty/PWM_res, 1)); myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x1f, str);      
+
+#if defined(NEW_DISPLAY_SPE)
+
+
+  sprintf(str, "Duty = %s%%  ", ftoa(tempstr, 100.*duty/PWM_res, 1)); 
+  //myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x1f, str);     
+            Display.txt_MoveCursor(1,0);
+           Display.putstr( str);
 //   sprintf(str, "Freq = %dkHz ", int(1000/period)); myLCD->printStr(0, 1, 2, 0x1f, 0x3f, 0x1f, str);      
-  sprintf(str, "Out = %sA, %dV   ", ftoa(tempstr, outC, 1), int(outV)); myLCD->printStr(0, 3, 2, 0x1f, 0x3f, 0, str);      
-  sprintf(str, "Temp = %dC  ", int(b1T)); myLCD->printStr(0, 5, 2, 0x1f, 0, 0, str);      
-  sprintf(str, "AH in = %sAH", ftoa(tempstr, curAH, 1)); myLCD->printStr(0, 6, 2, 0x1f, 0x3f, 0, str);      
-  sprintf(str, "Runtime = %umin", min_up); myLCD->printStr(0, 8, 2, 0, 0, 0x1f, str);
+  sprintf(str, "Out = %sA, %dV   ", ftoa(tempstr, outC, 1), int(outV)); 
+//  myLCD->printStr(0, 3, 2, 0x1f, 0x3f, 0, str);      
+             Display.txt_MoveCursor(1,3);
+           Display.putstr(str);
+  sprintf(str, "Temp = %dC  ", int(b1T)); 
+//  myLCD->printStr(0, 5, 2, 0x1f, 0, 0, str);      
+             Display.txt_MoveCursor(1,5);
+           Display.putstr(str);
+  sprintf(str, "AH in = %sAH", ftoa(tempstr, curAH, 1)); 
+  //myLCD->printStr(0, 6, 2, 0x1f, 0x3f, 0, str);      
+             Display.txt_MoveCursor(1,6);
+           Display.putstr(str);
+  sprintf(str, "Runtime = %umin", min_up);
+//  myLCD->printStr(0, 8, 2, 0, 0, 0x1f, str);
+             Display.txt_MoveCursor(1,8);
+           Display.putstr(str);
+
+#else
+  // myLCD->setOpacity(1); // so that we override previous text
+  sprintf(str, "Duty = %s%%  ", ftoa(tempstr, 100.*duty/PWM_res, 1)); 
+  myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x1f, str);      
+//   sprintf(str, "Freq = %dkHz ", int(1000/period)); myLCD->printStr(0, 1, 2, 0x1f, 0x3f, 0x1f, str);      
+  sprintf(str, "Out = %sA, %dV   ", ftoa(tempstr, outC, 1), int(outV)); 
+  myLCD->printStr(0, 3, 2, 0x1f, 0x3f, 0, str);      
+  sprintf(str, "Temp = %dC  ", int(b1T)); 
+  myLCD->printStr(0, 5, 2, 0x1f, 0, 0, str);      
+  sprintf(str, "AH in = %sAH", ftoa(tempstr, curAH, 1)); 
+  myLCD->printStr(0, 6, 2, 0x1f, 0x3f, 0, str);      
+  sprintf(str, "Runtime = %umin", min_up);
+  myLCD->printStr(0, 8, 2, 0, 0, 0x1f, str);
+
+#endif
 
 #ifdef NiXX
   if(min_up>=5) {
     // print dVdt only if we are past initial settling period
-    sprintf(str, "dVdt = %s     ", ftoa(tempstr, dVdt*1000., 1)); myLCD->printStr(0, 9, 2, 0, 0, 0x1f, str);
+    sprintf(str, "dVdt = %s     ", ftoa(tempstr, dVdt*1000., 1)); 
+#if defined(NEW_DISPLAY_SPE)
+        Display.txt_MoveCursor(1,9);
+           Display.putstr(str);
+
+#else    
+    myLCD->printStr(0, 9, 2, 0, 0, 0x1f, str);
+#endif
+    
   }
 #endif
 }
 
-void printClrMsg(const char *str, const int del, const byte red, const byte green, const byte blue) {
-  myLCD->clrScreen();
-  myLCD->printStr(0, 2, 2, red, green, blue, str);      
+void printClrMsg(char *str, const int del, const byte red, const byte green, const byte blue) {
+  #if defined(NEW_DISPLAY_SPE)
+        Display.gfx_Cls();
+        Display.txt_MoveCursor(1,2);
+           Display.putstr(str);
+
+  #else
+    myLCD->clrScreen();
+    myLCD->printStr(0, 2, 2, red, green, blue, str);      
+  #endif
   delay(del);
+  
 }
 
 char *ftoa(char *a, double f, int precision)
@@ -1114,9 +1377,16 @@ unsigned int MenuSelector2(unsigned int selection_total, const char * labels[])
   
   //sprintf(str, "[%s]", labels[temp_selection-1] ); 
   //myLCD->printStr(0, 3, 2, 0x1f, 0x3f, 0x1f, str);
+  #if defined(NEW_DISPLAY_SPE)
+          Display.txt_MoveCursor(3,2);
+         Display.putstr("[              ]");
+          Display.txt_MoveCursor(3,3);
+          Display.putstr((char*)labels[temp_selection-1]);
+           
+#else
   myLCD->printStr(0, 3, 2, 0x1f, 0x3f, 0x1f, "[              ]");
   myLCD->printStr(1, 3, 2, 0x1f, 0x3f, 0x1f, labels[temp_selection-1]);
-
+#endif
   while(!selection)
   {
     int step_btn = digitalRead(pin_pwrCtrlButton);
@@ -1125,9 +1395,16 @@ unsigned int MenuSelector2(unsigned int selection_total, const char * labels[])
     {
       ++temp_selection;
       if(temp_selection > selection_total) temp_selection = 1;
+      #if defined(NEW_DISPLAY_SPE)
+          Display.txt_MoveCursor(3,2);
+          Display.putstr("[              ]");
+          
+          Display.txt_MoveCursor(3,3);
+          Display.putstr((char*)labels[temp_selection-1]);
+      #else
       myLCD->printStr(0, 3, 2, 0x1f, 0x3f, 0x1f, "[              ]");
       myLCD->printStr(1, 3, 2, 0x1f, 0x3f, 0x1f, labels[temp_selection-1]);
-      
+      #endif
       // ideally, this should call a StatusDisplay method and simply pass selection index
       // StatusDisplay should encapsulate all the complexities of drawing status info onto the screen
       // alternatively myLCD can be re-purposed for this
@@ -1136,9 +1413,17 @@ unsigned int MenuSelector2(unsigned int selection_total, const char * labels[])
     if(select_btn == HIGH)
     {
       selection = temp_selection;
+      #if defined(NEW_DISPLAY_SPE)
+      
+          Display.txt_MoveCursor(3,2);
+          Display.putstr("[              ]");          
+          Display.txt_MoveCursor(3,3);
+          Display.putstr((char*)labels[temp_selection-1]);
+#else
       myLCD->printStr(0, 3, 2, 0x1f, 0x0, 0x0, "(              )");
       myLCD->printStr(1, 3, 2, 0x1f, 0x0, 0x0, labels[selection-1]);
       // similar to the above, should delegate display to StatusDisplay object
+      #endif
     } 
     delay(80);
   }
@@ -1167,7 +1452,15 @@ int BtnTimeout(int n, int line)
   while(n > 0)
   {
     sprintf(str, "(%d sec left) ", n); 
+    #if defined(NEW_DISPLAY_SPE)
+    
+
+          Display.txt_MoveCursor(1,line);
+          Display.putstr(str);
+          
+    #else
     myLCD->printStr(0, line, 2, 0x1f, 0x3f, 0, str);
+    #endif
 
     for(int k=0; k<100; k++) {
       if(digitalRead(pin_pwrCtrlButton)==HIGH || digitalRead(pin_pwrCtrl2Button) == HIGH) return 1;
@@ -1239,6 +1532,19 @@ void printDigits(int start, int * digit, int stat) {
   printDigit(start, stat, str);
 }
 void printDigit(int x, int stat, char * str) {
+#if defined(NEW_DISPLAY_SPE)
+
+  if(stat==0) {
+          Display.txt_MoveCursor(x,5);
+          Display.txt_FGcolour(YELLOW) ; //RED
+  } //myLCD->printStr(x, 5, 2, 0x1f, 0x3f, 0x0, str); // yellow
+  if(stat==1) {
+          Display.txt_MoveCursor(x,5);
+          Display.txt_FGcolour(BLUE) ; //RED
+  }//myLCD->printStr(x, 5, 2, 0x8, 0x8, 0x1f, str); // blue
+  Display.putstr(str);
+#else  
   if(stat==0) myLCD->printStr(x, 5, 2, 0x1f, 0x3f, 0x0, str); // yellow
   if(stat==1) myLCD->printStr(x, 5, 2, 0x8, 0x8, 0x1f, str); // blue
+#endif
 }
