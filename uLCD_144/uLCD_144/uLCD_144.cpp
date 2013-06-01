@@ -6,7 +6,7 @@
 uLCD_144::uLCD_144(int baud) {
   Serial.begin(baud);
   // display requires some time to init before sending auto-baud command
-  delay(1000);
+  delay(2000);
  // Serial.print(0x55, BYTE);
 	Serial.write(0x55);
 
@@ -104,7 +104,7 @@ void uLCD_144::printStr(int col, int row, int font, byte red, byte green, byte b
   Serial.write(getMSB(red, green, blue));
   Serial.write(getLSB(red, green, blue));
   Serial.print(str);
-  Serial.write(0);
+  Serial.write(00);
   waitAck();
 }
 
