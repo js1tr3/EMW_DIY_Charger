@@ -11,7 +11,7 @@ http://www.diyelectriccar.com/forums/showthread.php/10kw-60a-diy-charger-open-so
 Controller: Arduino Pro Mini 5V (based on a ATmega328P-PU microcontroller)
 
 Pinout assignments: see below in code
-
+v
 ----------- Basic code structure:
 ------ Startup:
 * 2 timeouts - one 5 sec for config, one 10 sec for power setting. can be interrupled by any button
@@ -38,7 +38,7 @@ __asm volatile ("nop");
 #include "EEPROM_VMcharger.h"
 #include <TimerOne.h>
 
-//#define NEW_DISPLAY_SPE // Use SPE commands. instead of SGC.
+#define NEW_DISPLAY_SPE // Use SPE commands. instead of SGC.
 // https://github.com/4dsystems/Goldelox-Serial-Arduino-Library
 
 #ifdef NEW_DISPLAY_SPE
@@ -392,11 +392,21 @@ void setup() {
      case STATE_BT:
 
 #ifdef NEW_DISPLAY_SPE
-      Display.txt_MoveCursor(1,0);
+      Display.txt_MoveCursor(1,0); //txt_MoveCursor(word  Line, word  Column)
       Display.txt_Height(1);
       Display.txt_Width(1);
+      Display.txt_FGcolour(GREEN);
 
-      Display.putstr(" Thank you \n for choosing \n EMW Charger! \n Press any button \n to configure\n") ; 
+      Display.putstr("12345678901234567890"); // broken line wrap
+    //               "[                ]"
+      delay(3000); 
+      
+      Display.txt_MoveCursor(2,0); //txt_MoveCursor(word  Line, word  Column)
+      Display.txt_Height(1);
+      Display.txt_Width(1);
+      Display.txt_FGcolour(GREEN);
+      Display.putstr(" Thank you \n for choosing \n EMW Charger! \n Press any \n button to \n configure.\n SPE display mode \n") ; 
+      //                                                                                                  
 #else
     //void uLCD_144::printStr(int col, int row, int font, byte red, byte green, byte blue, const char *str) 
        myLCD->printStr(0, 0, 2, 0, 0x3f, 0x00, "Thank you for choosing EMW Charger! Press any button to configure"); 
@@ -411,6 +421,7 @@ void setup() {
        #ifdef NEW_DISPLAY_SPE
            Display.gfx_Cls();
            Display.txt_MoveCursor(1,1);
+           Display.txt_FGcolour(GREEN);
            Display.putstr("Cell Type: ");
        #else
           myLCD->clrScreen();
@@ -424,6 +435,7 @@ void setup() {
         #ifdef NEW_DISPLAY_SPE
         Display.gfx_Cls();
         Display.txt_MoveCursor(1,1);
+        Display.txt_FGcolour(GREEN);
          Display.putstr("CV cutoff:");
         #else
            myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "CV cutoff:         ");
@@ -435,6 +447,7 @@ void setup() {
     #ifdef NEW_DISPLAY_SPE
        Display.gfx_Cls();
        Display.txt_MoveCursor(1,1);
+       Display.txt_FGcolour(GREEN);
        Display.putstr("Number of cells:");
     #else
        myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "Number of cells:   ");
@@ -444,8 +457,9 @@ void setup() {
        break;
      case STATE_CAPACITY:
     #ifdef NEW_DISPLAY_SPE
-   
+      Display.gfx_Cls();
       Display.txt_MoveCursor(1,1);
+      Display.txt_FGcolour(GREEN);
       Display.putstr("Capacity:");
     #else
        myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "Capacity:          ");
@@ -456,7 +470,9 @@ void setup() {
      case STATE_CALIBRATE:
        // first, zero calibration
        #ifdef NEW_DISPLAY_SPE
+       Display.gfx_Cls();
        Display.txt_MoveCursor(1,1);
+       Display.txt_FGcolour(GREEN);
        Display.putstr("Short output \n and press \n any button");
        #else
        myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "Short output and press any button");
@@ -472,7 +488,8 @@ void setup() {
          // output current calibration
          configuration.Ccal=outC*k_V_C;
           #ifdef NEW_DISPLAY_SPE
-            Display.txt_MoveCursor(1,5); // move cursor and set color
+            Display.txt_MoveCursor(5,1); // move cursor and set color
+            Display.txt_FGcolour(HOTPINK);
             Display.putstr("Calibrated zero");
           #else
          myLCD->printStr(0, 5, 2, 0x1f, 0x3f, 0x00, "Calibrated zero");
@@ -485,7 +502,9 @@ void setup() {
         #ifdef NEW_DISPLAY_SPE
             Display.gfx_Cls();
             Display.txt_MoveCursor(1,1);
+            Display.txt_FGcolour(GREEN);
             Display.putstr("Connect battery \n to calibrate \n or press any \n button to skip");
+                                              
         #else
          myLCD->clrScreen();
          myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "Connect battery to calibrate or press any button to skip");
@@ -499,10 +518,11 @@ void setup() {
              outV=readV(); // read settled voltage
              // calibrate
             #ifdef NEW_DISPLAY_SPE
-          // Display.gfx_Cls();
+           Display.gfx_Cls();
            Display.txt_MoveCursor(1,1);
+           Display.txt_FGcolour(GREEN);
            Display.putstr("Measure & enter \n actual battery \n voltage:");
-
+                                                        
             #else
              myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "Measure & enter actual battery voltage:");
              #endif
@@ -521,10 +541,11 @@ void setup() {
      
      
     #ifdef NEW_DISPLAY_SPE
-     sprintf(str, "%d %s cells,\n %dAH", configuration.nCells, battTypeLabel[configuration.battType], configuration.AH);
-  
+     sprintf(str, "%d \n %s cells,\n %dAH", configuration.nCells, battTypeLabel[configuration.battType], configuration.AH);
+                 // "[                ]"
     Display.gfx_Cls();
     Display.txt_MoveCursor(1,1);
+    Display.txt_FGcolour(GREEN);
     Display.putstr("Confirm: \n") ;
     Display.putstr(str);
     #else
@@ -563,7 +584,8 @@ void loop() {
   int x=1;
   if(outV<minBattVs[configuration.battType]*configuration.nCells) {
     // either no battery or reverse polarity
-    printClrMsg("Battery not connected\n or reverse polarity.\n Press any button\n to ignore (CAREFUL!)", 50, 0x1f, 0x3f, 0);
+    printClrMsg("Battery not \n connected or \n reverse polarity.\n Press any button\n to ignore \n (CAREFUL!)", 50, 0x1f, 0x3f, 0);
+                                                                                      
     x=BtnTimeout(10, 7);
   }
 
@@ -598,16 +620,17 @@ void loop() {
 
         #ifdef NEW_DISPLAY_SPE
             Display.gfx_Cls();
-            Display.txt_MoveCursor(1,6);
+            Display.txt_FGcolour(GREEN);
+            Display.txt_MoveCursor(6,1);
            Display.putstr("Params      ");
         sprintf(str, "IN: %dV, %dA", int(mainsV), configuration.mainsC); 
-           Display.txt_MoveCursor(1,7);
+           Display.txt_MoveCursor(7,2);
            Display.putstr(str);
        sprintf(str, "OUT: %dA", configuration.CC); 
-           Display.txt_MoveCursor(1,8);
+           Display.txt_MoveCursor(8,2);
            Display.putstr(str);
         sprintf(str, "TIMEOUT: %dmin", timeOut); 
-           Display.txt_MoveCursor(1,9);
+           Display.txt_MoveCursor(9,1);
            Display.putstr(str);
         #else
         myLCD->clrScreen();
@@ -625,7 +648,8 @@ void loop() {
         case STATE_WAIT_TIMEOUT:
           #ifdef NEW_DISPLAY_SPE
           //  Display.gfx_Cls();
-           Display.txt_MoveCursor(1,0);
+          Display.txt_FGcolour(GREEN);
+           Display.txt_MoveCursor(1,1);
            Display.putstr("press BTN to \n change parameters");
           #else
           myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x00, "press BTN to change parameters");
@@ -647,7 +671,8 @@ void loop() {
         case STATE_TOP_MENU:
           #ifdef NEW_DISPLAY_SPE
          //   Display.gfx_Cls();
-            Display.txt_MoveCursor(1,0);
+            Display.txt_MoveCursor(1,1);
+            Display.txt_FGcolour(GREEN);
            Display.putstr("Action: \n");
           
           #else
@@ -664,11 +689,13 @@ void loop() {
           break;
         case STATE_CONFIG_PWR:
           #ifdef NEW_DISPLAY_SPE
-          Display.txt_MoveCursor(1,0);
+          Display.gfx_Cls();
+          Display.txt_MoveCursor(1,1);
+          Display.txt_FGcolour(GREEN);
           Display.putstr("max INput current");
           configuration.mainsC = DecimalDigitInput3(configuration.mainsC); 
-     
-          Display.txt_MoveCursor(1,0);
+          Display.gfx_Cls();
+          Display.txt_MoveCursor(1,1);
           Display.putstr("max OUTput current");
           configuration.CC = DecimalDigitInput3(configuration.CC); 
           
@@ -687,8 +714,10 @@ void loop() {
         case STATE_CONFIG_TIMER:
             // now set the timer using the same button   
 #ifdef NEW_DISPLAY_SPE
+           Display.gfx_Cls();
+           Display.txt_FGcolour(GREEN);
            Display.txt_MoveCursor(1,0);
-           Display.putstr("timeout (min, 0 for no timeout):");
+           Display.putstr("timeout (min, \n 0 for no timeout):");
 #else
            myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x1f, "timeout (min, 0 for no timeout):");
 #endif
@@ -698,6 +727,8 @@ void loop() {
            break;
         case STATE_RUN_CHARGER:
 #ifdef NEW_DISPLAY_SPE
+             Display.gfx_Cls();
+             Display.txt_FGcolour(GREEN);
              Display.txt_MoveCursor(1,0);
              Display.putstr("Confirm CHARGE [Y/n]:");
 #else
@@ -821,10 +852,11 @@ int runCharger() {
   
   #ifdef NEW_DISPLAY_SPE
       Display.gfx_Cls();
-    Display.txt_MoveCursor(1,0);
+      Display.txt_FGcolour(GREEN);
+    Display.txt_MoveCursor(1,1);
            Display.putstr("Charging Complete! \n Press right button \n to run again");  
             sprintf(str, "%dAH in", int(AH_charger));
-            Display.txt_MoveCursor(1,6);
+            Display.txt_MoveCursor(6,1);
             Display.putstr(str);
 #else
   myLCD->clrScreen();
@@ -860,6 +892,7 @@ int runChargeStep(int cycleType, float CX, int stopType, float stopValue) {
   
 #ifdef NEW_DISPLAY_SPE
     Display.gfx_Cls();
+    Display.txt_FGcolour(GREEN);
       sprintf(str, "type=%d, \n CX=%d, \n sType=%d, \n max=%d", cycleType, int(CX), stopType, int(stopValue)); 
 
     Display.txt_MoveCursor(1,4);
@@ -988,7 +1021,8 @@ int runChargeStep(int cycleType, float CX, int stopType, float stopValue) {
                 
                 #ifdef NEW_DISPLAY_SPE
                   Display.txt_MoveCursor(1,1);
-                  sprintf(str, "Overheating, T=%dC. \n Cooling to T=%dC", (int)heatSinkT, (int)midHeatSinkT);
+                  Display.txt_FGcolour(RED);
+                  sprintf(str, "Overheating,\n T=%dC. \n Cooling to \n T=%dC", (int)heatSinkT, (int)midHeatSinkT);
                   Display.putstr(str); // still need to set colors here
                 #else
                   sprintf(str, "Overheating, T=%dC. Cooling to T=%dC", (int)heatSinkT, (int)midHeatSinkT);
@@ -1063,7 +1097,7 @@ int runChargeStep(int cycleType, float CX, int stopType, float stopValue) {
       // check if need to stop
       if(isBtnPressed(pin_pwrCtrlButton)) {
         int b1=0, b2=0;
-        printClrMsg("charger stopped \n at user request. \n Press same button \n to exit. Press the \n other button \n to resume", 1000, 0x1f, 0x3f, 0);   
+        printClrMsg("charger stopped \n at user request. \n Press same button \n to exit. \n Press the \n other button \n to resume", 1000, 0x1f, 0x3f, 0);   
         stopPWM();
         out1=out2=outV=outC=outC_avg=outV_avg=0; // force duty ramp
   
@@ -1147,7 +1181,8 @@ int runChargeStep(int cycleType, float CX, int stopType, float stopValue) {
     
     if(out1 < -10 || out2 < -10) {
       // sensor polarity problems. abort
-      sprintf(str, "Sensor polarity /\n calibration problems\n (out1=%d, out2=%d). \n Turn off and recalibrate /\n check your wiring", int(out1), int(out2));
+      sprintf(str, "Sensor polarity /\n calibration problems\n (out1=%d,\n out2=%d). \n Turn off and \n recalibrate /\n check your wiring", int(out1), int(out2));
+                                                                                                                        
       printClrMsg(str, 30000, 0, 0x3f, 0);
     }
     //---------- END MAIN DUTY CYCLE MANAGEMENT LOGIC ----------------------------
@@ -1256,11 +1291,12 @@ void printParams(float duty, float outV, float outC, float b1T, float curAH, flo
   char tempstr[16];
 
 #ifdef NEW_DISPLAY_SPE
-
+    Display.gfx_Cls();
 
   sprintf(str, "Duty = %s%%  ", ftoa(tempstr, 100.*duty/PWM_res, 1)); 
   //myLCD->printStr(0, 0, 2, 0x1f, 0x3f, 0x1f, str);     
             Display.txt_MoveCursor(1,1);
+            Display.txt_FGcolour(GREEN);
            Display.putstr( str);
 //   sprintf(str, "Freq = %dkHz ", int(1000/period)); myLCD->printStr(0, 1, 2, 0x1f, 0x3f, 0x1f, str);      
   sprintf(str, "Out = %sA, %dV   ", ftoa(tempstr, outC, 1), int(outV)); 
@@ -1312,11 +1348,19 @@ void printParams(float duty, float outV, float outC, float b1T, float curAH, flo
 #endif
 }
 
+// process color data
+int getMycolor(byte red, byte green, byte blue) {
+  return (red*8 + green/8)>>8+((green & 0x7)*32 + blue);
+}
+
+
 void printClrMsg(char *str, const int del, const byte red, const byte green, const byte blue) {
   #ifdef NEW_DISPLAY_SPE
         Display.gfx_Cls();
-        Display.txt_MoveCursor(2,1);
+        Display.txt_MoveCursor(2,0);
+        Display.txt_FGcolour(getMycolor(red, green, blue) );
            Display.putstr(str);
+           
 
   #else
     myLCD->clrScreen();
@@ -1382,9 +1426,10 @@ unsigned int MenuSelector2(unsigned int selection_total, const char * labels[])
   //sprintf(str, "[%s]", labels[temp_selection-1] ); 
   //myLCD->printStr(0, 3, 2, 0x1f, 0x3f, 0x1f, str);
   #ifdef NEW_DISPLAY_SPE
-          Display.txt_MoveCursor(3,2);
-         Display.putstr("[              ]");
-          Display.txt_MoveCursor(3,3);
+          Display.txt_FGcolour(GREEN);
+          Display.txt_MoveCursor(3,0);
+          Display.putstr("[              ]");
+          Display.txt_MoveCursor(3,1);
           Display.putstr((char*)labels[temp_selection-1]);
            
 #else
@@ -1393,17 +1438,19 @@ unsigned int MenuSelector2(unsigned int selection_total, const char * labels[])
 #endif
   while(!selection)
   {
-    int step_btn = digitalRead(pin_pwrCtrlButton);
-    int select_btn = digitalRead(pin_pwrCtrl2Button);
+    int step_btn = isBtnPressed(pin_pwrCtrlButton); // debounce these button presses also. why not?
+    int select_btn = isBtnPressed(pin_pwrCtrl2Button); //digitalRead
+
     if(step_btn == HIGH)
     {
       ++temp_selection;
       if(temp_selection > selection_total) temp_selection = 1;
       #ifdef NEW_DISPLAY_SPE
-          Display.txt_MoveCursor(3,2);
+          Display.txt_FGcolour(GREEN);
+          Display.txt_MoveCursor(3,0);
           Display.putstr("[              ]");
           
-          Display.txt_MoveCursor(3,3);
+          Display.txt_MoveCursor(3,1);
           Display.putstr((char*)labels[temp_selection-1]);
       #else
       myLCD->printStr(0, 3, 2, 0x1f, 0x3f, 0x1f, "[              ]");
@@ -1418,10 +1465,11 @@ unsigned int MenuSelector2(unsigned int selection_total, const char * labels[])
     {
       selection = temp_selection;
       #ifdef NEW_DISPLAY_SPE
-      
-          Display.txt_MoveCursor(3,2);
-          Display.putstr("[              ]");          
-          Display.txt_MoveCursor(3,3);
+          Display.txt_FGcolour(RED);
+          Display.txt_MoveCursor(3,0);
+          Display.putstr("(              )");          
+          Display.txt_MoveCursor(3,1);
+          
           Display.putstr((char*)labels[temp_selection-1]);
       #else
       myLCD->printStr(0, 3, 2, 0x1f, 0x0, 0x0, "(              )");
@@ -1458,7 +1506,7 @@ int BtnTimeout(int n, int line)
     sprintf(str, "(%d sec left) ", n); 
     #ifdef NEW_DISPLAY_SPE
     
-
+          Display.txt_FGcolour(GREEN);
           Display.txt_MoveCursor(line,1);
           Display.putstr(str);
           
@@ -1490,8 +1538,10 @@ int DecimalDigitInput3(int preset)
 
   while(x < 4)
   {
-    int step_btn = digitalRead(pin_pwrCtrlButton); // increments digit
-    int select_btn = digitalRead(pin_pwrCtrl2Button); // moves to next digit
+    int step_btn = isBtnPressed(pin_pwrCtrlButton); // increments digit
+    int select_btn = isBtnPressed(pin_pwrCtrl2Button); // moves to next digit
+ 
+ 
  
     if(step_btn == HIGH) {
       if(x > 2) x = 0;
@@ -1507,16 +1557,16 @@ int DecimalDigitInput3(int preset)
       ++x;
     } 
 
-    printDigits(0, digit, 1);
+    printDigits(2, digit, 1);
   
     if(x < 3) {
       // still on digits. Reprint the digit we are on in a different color now so we see what's being changed
       str[0] = 0x30+digit[x];
-      printDigit(x, 0, str);
+      printDigit(x+2, 0, str);
     } else 
     if(x == 3) {
       // selection made - show all in the 'changing' color
-      printDigits(0, digit, 0);
+      printDigits(2, digit, 0);
     }
     
     delay(150);
@@ -1541,11 +1591,11 @@ void printDigit(int x, int stat, char * str) {
 
   if(stat==0) {
           Display.txt_MoveCursor(5,x);
-          Display.txt_FGcolour(YELLOW) ; //RED
+          Display.txt_FGcolour(YELLOWGREEN) ; //RED
   } //myLCD->printStr(x, 5, 2, 0x1f, 0x3f, 0x0, str); // yellow
   if(stat==1) {
           Display.txt_MoveCursor(5,x);
-          Display.txt_FGcolour(BLUE) ; //RED
+          Display.txt_FGcolour(BLUE) ; //BLUE
   }//myLCD->printStr(x, 5, 2, 0x8, 0x8, 0x1f, str); // blue
   Display.putstr(str);
   
