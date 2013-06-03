@@ -1,16 +1,19 @@
 #include "uLCD_144.h"
 
 
+
 //==================================== SCREEN FUNCTION LIBRARY ========================
 //-------------- define all function members ----------    
 uLCD_144::uLCD_144(int baud) {
+  
   Serial.begin(baud);
   // display requires some time to init before sending auto-baud command
-  delay(2000);
+  delay(1000);
  // Serial.print(0x55, BYTE);
-	Serial.write(0x55);
 
+  Serial.write(0x55);
   waitAck();
+
 }
 
 // process color data
@@ -43,8 +46,8 @@ void uLCD_144::setContrast(int contrast) {
 
 void uLCD_144::clrScreen() {
   Serial.write(0x45);
-  
   waitAck();
+
 }  
   
 void uLCD_144::setBgColor(byte red, byte green, byte blue) {
@@ -104,7 +107,7 @@ void uLCD_144::printStr(int col, int row, int font, byte red, byte green, byte b
   Serial.write(getMSB(red, green, blue));
   Serial.write(getLSB(red, green, blue));
   Serial.print(str);
-  Serial.write(00);
+  Serial.write(0);
   waitAck();
 }
 
